@@ -15,6 +15,7 @@ import {
 import { HardhatRuntimeEnvironment } from 'hardhat/types'; // This adds the type from hardhat runtime environment.
 import { DeployFunction } from 'hardhat-deploy/types'; // This adds the type that a deploy function is expected to fulfill.
 
+import { addUpgradeToFunctionToABI } from '../scripts/utils/deployHelper';
 import { hex } from '../test/unit/utils/helpers';
 
 type DeployArgs = Parameters<Config__factory['deploy']>;
@@ -50,6 +51,7 @@ const func: DeployFunction = async function ({
   network,
   deployments,
   getNamedAccounts,
+  config: hreConfig,
 }: HardhatRuntimeEnvironment) {
   const deployed = network.live && (await deployments.getOrNull(NAME));
   if (deployed) return;
@@ -70,8 +72,19 @@ const func: DeployFunction = async function ({
     from: deployerAddress, // Deployer will be performing the deployment transaction.
     args, // Arguments to thecontract's constructor.
     log: true, // Display the address and gas used in the console (not when run in test though).
+    proxy: {
+      owner: deployerAddress,
+      proxyContract: 'UUPSProxy',
+      execute: {
+        methodName: 'initialize',
+        args: [],
+      },
+    },
   });
 
+  if (network.live) {
+    addUpgradeToFunctionToABI(hreConfig.paths.deployments, NAME, network.name);
+  }
   // Setting Config Contract & Internal Contract
   const config = await ethers.getContract<Config>(NAME, deployerAddress);
   const ld = await ethers.getContract<ListingData>(

@@ -2,6 +2,8 @@ import { CoverData__factory } from '@project/contracts/typechain';
 import { HardhatRuntimeEnvironment } from 'hardhat/types'; // This adds the type from hardhat runtime environment.
 import { DeployFunction } from 'hardhat-deploy/types'; // This adds the type that a deploy function is expected to fulfill.
 
+import { addUpgradeToFunctionToABI } from '../scripts/utils/deployHelper';
+
 type DeployArgs = Parameters<CoverData__factory['deploy']>;
 
 const NAME = 'CoverData';
@@ -10,6 +12,7 @@ const func: DeployFunction = async function ({
   network,
   deployments,
   getNamedAccounts,
+  config,
 }: HardhatRuntimeEnvironment) {
   const deployed = network.live && (await deployments.getOrNull(NAME));
   if (deployed) return;
@@ -25,7 +28,15 @@ const func: DeployFunction = async function ({
     from: deployerAddress, // Deployer will be performing the deployment transaction.
     args, // Arguments to thecontract's constructor.
     log: true, // Display the address and gas used in the console (not when run in test though).
+    proxy: {
+      owner: deployerAddress,
+      proxyContract: 'UUPSProxy',
+    },
   });
+
+  if (network.live) {
+    addUpgradeToFunctionToABI(config.paths.deployments, NAME, network.name);
+  }
 };
 
 func.tags = ['CoverData']; // This sets up a tag so you can execute the script on its own (and its dependencies).
