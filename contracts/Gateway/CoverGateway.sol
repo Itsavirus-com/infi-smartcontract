@@ -3,20 +3,25 @@ pragma solidity ^0.8.0;
 
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Master} from "../Master/Master.sol";
+import {ICoverData} from "../Interfaces/ICoverData.sol";
+import {IListingData} from "../Interfaces/IListingData.sol";
+import {ICoverGateway} from "../Interfaces/ICoverGateway.sol";
+import {IPool} from "../Interfaces/IPool.sol";
+import {IListingGateway} from "../Interfaces/IListingGateway.sol";
 import {CoverData} from "../Data/CoverData.sol";
 import {ListingData} from "../Data/ListingData.sol";
 import {Pool} from "../Capital/Pool.sol";
 import {ListingGateway} from "./ListingGateway.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
-contract CoverGateway is Master {
+contract CoverGateway is ICoverGateway, Pausable {
     // State variables
-    CoverData private cd;
-    ListingData private ld;
-    Pool private pool;
-    ListingGateway private lg;
+    ICoverData public cd;
+    IListingData public ld;
+    IPool public pool;
+    IListingGateway public lg;
     address public coinSigner;
-    address public devWallet;
+    address public override devWallet;
     ERC20Burnable internal infiToken;
 
     /**
@@ -35,16 +40,32 @@ contract CoverGateway is Master {
         _;
     }
 
+    modifier onlyAdmin() {
+        require(
+            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "ERR_AUTH_1"
+        );
+        _;
+    }
+
+    function pause() public onlyAdmin whenNotPaused {
+        _pause();
+    }
+
+    function unpause() public onlyAdmin whenPaused {
+        _unpause();
+    }
+
     function changeDependentContractAddress() external {
         // Only admin allowed to call this function
         require(
             IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "ERR_AUTH_1"
         );
-        cd = CoverData(cg.getLatestAddress("CD"));
-        ld = ListingData(cg.getLatestAddress("LD"));
-        lg = ListingGateway(cg.getLatestAddress("LG"));
-        pool = Pool(cg.getLatestAddress("PL"));
+        cd = ICoverData(cg.getLatestAddress("CD"));
+        ld = IListingData(cg.getLatestAddress("LD"));
+        lg = IListingGateway(cg.getLatestAddress("LG"));
+        pool = IPool(cg.getLatestAddress("PL"));
         coinSigner = cg.getLatestAddress("CS");
         devWallet = cg.getLatestAddress("DW");
         infiToken = ERC20Burnable(cg.infiTokenAddr());
@@ -55,7 +76,9 @@ contract CoverGateway is Master {
      */
     function buyCover(BuyCover calldata buyCoverData)
         external
+        override
         minimumBalance(msg.sender, 0)
+        whenNotPaused
     {
         // Get listing data
         CoverOffer memory offer = ld.getCoverOfferById(buyCoverData.offerId);
@@ -152,7 +175,9 @@ contract CoverGateway is Master {
      */
     function provideCover(ProvideCover calldata provideCoverData)
         external
+        override
         minimumBalance(msg.sender, 0)
+        whenNotPaused
     {
         // Get listing data
         CoverRequest memory request = ld.getCoverRequestById(
@@ -253,6 +278,7 @@ contract CoverGateway is Master {
     function isRequestCoverSucceed(uint256 requestId)
         public
         view
+        override
         returns (bool state)
     {
         CoverRequest memory coverRequest = ld.getCoverRequestById(requestId);
@@ -272,7 +298,12 @@ contract CoverGateway is Master {
     /**
      * @dev calculate startAt of cover
      */
-    function getStartAt(uint256 coverId) public view returns (uint256 startAt) {
+    function getStartAt(uint256 coverId)
+        public
+        view
+        override
+        returns (uint256 startAt)
+    {
         InsuranceCover memory cover = cd.getCoverById(coverId);
 
         if (cover.listingType == ListingType.REQUEST) {
@@ -297,7 +328,12 @@ contract CoverGateway is Master {
     /**
      * @dev calculate endAt for cover
      */
-    function getEndAt(uint256 coverId) external view returns (uint256 endAt) {
+    function getEndAt(uint256 coverId)
+        external
+        view
+        override
+        returns (uint256 endAt)
+    {
         InsuranceCover memory cover = cd.getCoverById(coverId);
         uint8 coverMonths = 0;
         if (cover.listingType == ListingType.REQUEST) {

@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Master} from "../Master/Master.sol";
+import {IPlatformData} from "../Interfaces/IPlatformData.sol";
 
-contract PlatformData is Master {
+contract PlatformData is IPlatformData {
     // State variables
     Platform[] public platforms;
     Oracle[] public oracles;
@@ -118,6 +118,7 @@ contract PlatformData is Master {
     function getOraclePriceFeedAddress(string calldata symbol)
         external
         view
+        override
         returns (address)
     {
         uint256[] memory priceFeeds = symbolToUsdPriceFeeds[symbol];

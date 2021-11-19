@@ -2,25 +2,25 @@
 pragma solidity ^0.8.0;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import {CoverData} from "../Data/CoverData.sol";
-import {ClaimData} from "../Data/ClaimData.sol";
-import {ListingData} from "../Data/ListingData.sol";
-import {PlatformData} from "../Data/PlatformData.sol";
-import {CoverGateway} from "./CoverGateway.sol";
-import {ListingGateway} from "./ListingGateway.sol";
-import {Master} from "../Master/Master.sol";
-import {Pool} from "../Capital/Pool.sol";
+import {ICoverData} from "../Interfaces/ICoverData.sol";
+import {IClaimData} from "../Interfaces/IClaimData.sol";
+import {IListingData} from "../Interfaces/IListingData.sol";
+import {IPlatformData} from "../Interfaces/IPlatformData.sol";
+import {ICoverGateway} from "../Interfaces/ICoverGateway.sol";
+import {IListingGateway} from "../Interfaces/IListingGateway.sol";
+import {IClaimHelper} from "../Interfaces/IClaimHelper.sol";
+import {IPool} from "../Interfaces/IPool.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract ClaimHelper is Master {
+contract ClaimHelper is IClaimHelper {
     // State variables
-    CoverGateway private coverGateway;
-    ListingGateway private listingGateway;
-    CoverData private coverData;
-    ClaimData private claimData;
-    ListingData private listingData;
-    PlatformData private platformData;
-    Pool private pool;
+    ICoverGateway public coverGateway;
+    IListingGateway public listingGateway;
+    ICoverData public coverData;
+    IClaimData public claimData;
+    IListingData public listingData;
+    IPlatformData public platformData;
+    IPool public pool;
     uint256 private constant PHASE_OFFSET = 64;
     uint256 private constant STABLECOINS_STANDARD_PRICE = 1;
 
@@ -53,13 +53,13 @@ contract ClaimHelper is Master {
             "ERR_AUTH_1"
         );
 
-        coverGateway = CoverGateway(cg.getLatestAddress("CG"));
-        listingGateway = ListingGateway(cg.getLatestAddress("LG"));
-        coverData = CoverData(cg.getLatestAddress("CD"));
-        claimData = ClaimData(cg.getLatestAddress("CM"));
-        listingData = ListingData(cg.getLatestAddress("LD"));
-        platformData = PlatformData(cg.getLatestAddress("PD"));
-        pool = Pool(cg.getLatestAddress("PL"));
+        coverGateway = ICoverGateway(cg.getLatestAddress("CG"));
+        listingGateway = IListingGateway(cg.getLatestAddress("LG"));
+        coverData = ICoverData(cg.getLatestAddress("CD"));
+        claimData = IClaimData(cg.getLatestAddress("CM"));
+        listingData = IListingData(cg.getLatestAddress("LD"));
+        platformData = IPlatformData(cg.getLatestAddress("PD"));
+        pool = IPool(cg.getLatestAddress("PL"));
     }
 
     /**
@@ -69,7 +69,7 @@ contract ClaimHelper is Master {
         InsuranceCover memory cover,
         uint256 assetPrice,
         uint8 decimals
-    ) public view returns (uint256) {
+    ) public view override returns (uint256) {
         require(cover.listingType == ListingType.OFFER, "ERR_CLG_27");
 
         uint8 insuredSumCurrencyDecimals = cg.getCurrencyDecimal(
@@ -92,7 +92,7 @@ contract ClaimHelper is Master {
         CoverRequest memory coverRequest,
         uint256 assetPrice,
         uint8 decimals
-    ) public view returns (uint256) {
+    ) public view override returns (uint256) {
         uint8 insuredSumCurrencyDecimals = cg.getCurrencyDecimal(
             uint8(coverRequest.insuredSumCurrency)
         );
@@ -296,6 +296,7 @@ contract ClaimHelper is Master {
     function checkClaimForDevaluation(address aggregatorAddress, uint80 roundId)
         public
         view
+        override
         returns (
             bool isValidClaim,
             uint256 assetPrice,
@@ -323,6 +324,7 @@ contract ClaimHelper is Master {
     function convertPrice(uint256[] memory withdrawable, uint256[] memory lock)
         external
         view
+        override
         returns (
             uint256 totalWithdrawInUSD,
             uint256 totalLockInUSD,
@@ -367,6 +369,7 @@ contract ClaimHelper is Master {
     function isValidPastDevaluation(address priceFeedAddr, uint80 roundId)
         external
         view
+        override
         returns (bool isValidDevaluation)
     {
         isValidDevaluation = true;
@@ -414,6 +417,7 @@ contract ClaimHelper is Master {
     function getPriceFeedAddress(InsuranceCover memory cover)
         public
         view
+        override
         returns (address priceFeedAddr)
     {
         string memory coinId = (cover.listingType == ListingType.REQUEST)
@@ -428,6 +432,7 @@ contract ClaimHelper is Master {
     function isPendingClaimExistOnCover(uint256 coverId)
         external
         view
+        override
         returns (bool statePendingClaimExists)
     {
         InsuranceCover memory cover = coverData.getCoverById(coverId);
@@ -469,6 +474,7 @@ contract ClaimHelper is Master {
      */
     function execExpiredPendingClaims(ListingType listingType, uint256 id)
         external
+        override
         onlyInternal
     {
         // Price feed aggregator address
@@ -494,7 +500,7 @@ contract ClaimHelper is Master {
     function execExpiredPendingClaimsByCoverId(
         address priceFeedAddr,
         uint256 coverId
-    ) public onlyInternal {
+    ) public override onlyInternal {
         uint256[] memory claimIds = claimData.getCoverToClaims(coverId);
 
         for (uint256 j = 0; j < claimIds.length; j++) {
@@ -549,7 +555,7 @@ contract ClaimHelper is Master {
     /**
      * @dev Check pending claim by claim id
      */
-    function checkValidityClaim(uint256 claimId) external {
+    function checkValidityClaim(uint256 claimId) external override {
         uint256 coverId = claimData.claimToCover(claimId);
         InsuranceCover memory cover = coverData.getCoverById(coverId);
 
@@ -697,7 +703,7 @@ contract ClaimHelper is Master {
     function isFunderHasPendingClaims(
         ListingType listingType,
         address funderAddr
-    ) external view returns (bool state) {
+    ) external view override returns (bool state) {
         uint256[] memory ids = (listingType == ListingType.OFFER)
             ? coverData.getFunderToCovers(funderAddr)
             : coverData.getFunderToRequestId(funderAddr);

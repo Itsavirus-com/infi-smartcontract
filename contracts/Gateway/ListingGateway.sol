@@ -3,23 +3,24 @@ pragma solidity ^0.8.0;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {ListingData} from "../Data/ListingData.sol";
-import {ClaimData} from "../Data/ClaimData.sol";
-import {PlatformData} from "../Data/PlatformData.sol";
-import {Master} from "../Master/Master.sol";
-import {CoverGateway} from "./CoverGateway.sol";
-import {CoverData} from "../Data/CoverData.sol";
-import {Pool} from "../Capital/Pool.sol";
+import {IListingData} from "../Interfaces/IListingData.sol";
+import {IClaimData} from "../Interfaces/IClaimData.sol";
+import {IListingGateway} from "../Interfaces/IListingGateway.sol";
+import {IPlatformData} from "../Interfaces/IPlatformData.sol";
+import {ICoverGateway} from "../Interfaces/ICoverGateway.sol";
+import {ICoverData} from "../Interfaces/ICoverData.sol";
+import {IPool} from "../Interfaces/IPool.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
-contract ListingGateway is Master {
-    CoverData private cd;
-    ListingData private ld;
-    ClaimData private claimData;
-    CoverGateway private coverGateway;
-    Pool private pool;
-    PlatformData private platformData;
-    ERC20Burnable internal infiToken;
+contract ListingGateway is IListingGateway, Pausable {
+    ICoverData public cd;
+    IListingData public ld;
+    IClaimData public claimData;
+    ICoverGateway public coverGateway;
+    IPool public pool;
+    IPlatformData public platformData;
+    ERC20Burnable public infiToken;
     address public coinSigner;
 
     /**
@@ -87,20 +88,36 @@ contract ListingGateway is Master {
         _;
     }
 
-    function changeDependentContractAddress() external {
+    modifier onlyAdmin() {
+        require(
+            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "ERR_AUTH_1"
+        );
+        _;
+    }
+
+    function pause() public onlyAdmin whenNotPaused {
+        _pause();
+    }
+
+    function unpause() public onlyAdmin whenPaused {
+        _unpause();
+    }
+
+    function changeDependentContractAddress() external whenNotPaused {
         // Only admin allowed to call this function
         require(
             IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "ERR_AUTH_1"
         );
-        ld = ListingData(cg.getLatestAddress("LD"));
+        ld = IListingData(cg.getLatestAddress("LD"));
         infiToken = ERC20Burnable(cg.infiTokenAddr());
-        coverGateway = CoverGateway(cg.getLatestAddress("CG"));
-        cd = CoverData(cg.getLatestAddress("CD"));
-        pool = Pool(cg.getLatestAddress("PL"));
+        coverGateway = ICoverGateway(cg.getLatestAddress("CG"));
+        cd = ICoverData(cg.getLatestAddress("CD"));
+        pool = IPool(cg.getLatestAddress("PL"));
         coinSigner = cg.getLatestAddress("CS");
-        claimData = ClaimData(cg.getLatestAddress("CM"));
-        platformData = PlatformData(cg.getLatestAddress("PD"));
+        claimData = IClaimData(cg.getLatestAddress("CM"));
+        platformData = IPlatformData(cg.getLatestAddress("PD"));
     }
 
     /**
@@ -110,7 +127,7 @@ contract ListingGateway is Master {
         address from,
         uint256 value,
         bytes memory payData
-    ) external onlyInternal {
+    ) external override onlyInternal whenNotPaused {
         CreateCoverRequestData memory payload = abi.decode(
             payData,
             (CreateCoverRequestData)
@@ -205,7 +222,7 @@ contract ListingGateway is Master {
         address from,
         uint256 value,
         bytes memory payData
-    ) external onlyInternal {
+    ) external override onlyInternal whenNotPaused {
         CreateCoverOfferData memory payload = abi.decode(
             payData,
             (CreateCoverOfferData)
@@ -286,6 +303,7 @@ contract ListingGateway is Master {
     function getListActiveCoverOffer()
         external
         view
+        override
         returns (uint256 listLength, uint256[] memory coverOfferIds)
     {
         // Because "push" is not available in uint256[] memory outside of storage
@@ -311,6 +329,7 @@ contract ListingGateway is Master {
     function getInsuredSumTakenOfCoverOffer(uint256 coverOfferId)
         external
         view
+        override
         returns (uint256 insuredSumTaken)
     {
         uint256[] memory listCoverIds = cd.getCoversByOfferId(coverOfferId);
@@ -330,6 +349,7 @@ contract ListingGateway is Master {
     function getChainlinkPrice(uint8 currencyType)
         external
         view
+        override
         returns (
             uint80 roundId,
             int256 price,

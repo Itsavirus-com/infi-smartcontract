@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
-import {Master} from "../Master/Master.sol";
+import {ICoverData} from "../Interfaces/ICoverData.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract CoverData is Master {
+contract CoverData is ICoverData, UUPSUpgradeable {
     // State Variables
     InsuranceCover[] internal covers; // InsuranceCover.id
     mapping(address => uint256[]) internal holderToCovers;
@@ -11,16 +12,18 @@ contract CoverData is Master {
     mapping(address => uint256[]) internal funderToRequestId;
     mapping(uint256 => uint256[]) internal offerIdToCovers;
     mapping(uint256 => uint256[]) internal requestIdToCovers;
-    mapping(uint256 => bool) public isPremiumCollected; //  coverId -> true/false
-    mapping(uint256 => uint8) public coverIdToCoverMonths; // Only for Buy Cover / Take Offer
-    mapping(uint256 => uint256) public insuranceCoverStartAt; // Only for Buy Cover / Take Offer
+    mapping(uint256 => bool) public override isPremiumCollected; //  coverId -> true/false
+    mapping(uint256 => uint8) public override coverIdToCoverMonths; // Only for Buy Cover / Take Offer
+    mapping(uint256 => uint256) public override insuranceCoverStartAt; // Only for Buy Cover / Take Offer
     CoverFunding[] internal coverFundings;
     mapping(uint256 => uint256[]) internal requestIdToCoverFundings;
     mapping(address => uint256[]) internal funderToCoverFundings;
     // Funder Address ||--< coverId => true/false
-    mapping(address => mapping(uint256 => bool)) public isFunderOfCover;
+    mapping(address => mapping(uint256 => bool))
+        public
+        override isFunderOfCover;
     // Mapping offer to the most last cover end time
-    mapping(uint256 => uint256) public offerIdToLastCoverEndTime;
+    mapping(uint256 => uint256) public override offerIdToLastCoverEndTime;
 
     // Events
     event Cover(
@@ -33,6 +36,10 @@ contract CoverData is Master {
     event Booking(uint256 id, CoverFunding coverFunding);
     event CoverPremiumCollected(uint256 coverId);
 
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(super._getAdmin() == msg.sender, "ERR_AUTH_5");
+    }
+
     /**
      * @dev Save cover data when user take offer
      */
@@ -40,7 +47,7 @@ contract CoverData is Master {
         InsuranceCover memory cover,
         uint8 coverMonths,
         address funder
-    ) external {
+    ) external override {
         covers.push(cover);
         uint256 coverId = covers.length - 1;
         offerIdToCovers[cover.offerId].push(coverId);
@@ -67,7 +74,10 @@ contract CoverData is Master {
     /**
      * @dev Save cover data when user take request
      */
-    function storeBookingByTakeRequest(CoverFunding memory booking) external {
+    function storeBookingByTakeRequest(CoverFunding memory booking)
+        external
+        override
+    {
         coverFundings.push(booking);
         uint256 coverFundingId = coverFundings.length - 1;
         requestIdToCoverFundings[booking.requestId].push(coverFundingId);
@@ -85,7 +95,7 @@ contract CoverData is Master {
         InsuranceCover memory cover,
         uint8 coverMonths,
         address funder
-    ) external {
+    ) external override {
         covers.push(cover);
         uint256 coverId = covers.length - 1;
         requestIdToCovers[cover.requestId].push(coverId);
@@ -104,6 +114,7 @@ contract CoverData is Master {
     function getCoverById(uint256 coverId)
         external
         view
+        override
         returns (InsuranceCover memory cover)
     {
         cover = covers[coverId];
@@ -115,6 +126,7 @@ contract CoverData is Master {
     function getBookingById(uint256 bookingId)
         external
         view
+        override
         returns (CoverFunding memory coverFunding)
     {
         coverFunding = coverFundings[bookingId];
@@ -123,7 +135,12 @@ contract CoverData is Master {
     /**
      * @dev get cover months for cover that crated from take offer only
      */
-    function getCoverMonths(uint256 coverId) external view returns (uint8) {
+    function getCoverMonths(uint256 coverId)
+        external
+        view
+        override
+        returns (uint8)
+    {
         return coverIdToCoverMonths[coverId];
     }
 
@@ -133,6 +150,7 @@ contract CoverData is Master {
     function getCoversByOfferId(uint256 offerId)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return offerIdToCovers[offerId];
@@ -144,6 +162,7 @@ contract CoverData is Master {
     function getFunderToCovers(address member)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return funderToCovers[member];
@@ -152,7 +171,7 @@ contract CoverData is Master {
     /**
      * @dev called when funder collected premium over success cover
      */
-    function setPremiumCollected(uint256 coverId) external {
+    function setPremiumCollected(uint256 coverId) external override {
         isPremiumCollected[coverId] = true;
         emit CoverPremiumCollected(coverId);
         // Check the caller is internal address
@@ -165,6 +184,7 @@ contract CoverData is Master {
     function getCoversByRequestId(uint256 requestId)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return requestIdToCovers[requestId];
@@ -176,6 +196,7 @@ contract CoverData is Master {
     function getFunderToRequestId(address funder)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return funderToRequestId[funder];

@@ -2,8 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract Config is AccessControl {
+contract Config is AccessControl, Initializable, UUPSUpgradeable {
     // Enums
     enum CurrencyType {
         USDT,
@@ -24,13 +26,17 @@ contract Config is AccessControl {
     uint256 public maxPayoutPeriod;
     uint256 public validationPreviousPeriod;
 
-    constructor() {
-        // set deployer as Admin
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(super._getAdmin() == msg.sender, "ERR_AUTH_5");
+    }
+
+    function initialize() public initializer {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
         // set stablecoins decimal
         currencyDecimals[CurrencyType.USDT] = 6;
         currencyDecimals[CurrencyType.USDC] = 6;
         currencyDecimals[CurrencyType.DAI] = 18;
+
         // set stablecoin coinId Name
         currencyName[CurrencyType.USDT] = "tether";
         currencyName[CurrencyType.USDC] = "usd-coin";

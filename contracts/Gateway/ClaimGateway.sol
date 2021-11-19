@@ -2,27 +2,28 @@
 pragma solidity ^0.8.0;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import {CoverData} from "../Data/CoverData.sol";
-import {ClaimData} from "../Data/ClaimData.sol";
-import {ListingData} from "../Data/ListingData.sol";
-import {PlatformData} from "../Data/PlatformData.sol";
-import {CoverGateway} from "./CoverGateway.sol";
-import {ListingGateway} from "./ListingGateway.sol";
-import {Master} from "../Master/Master.sol";
-import {Pool} from "../Capital/Pool.sol";
-import {ClaimHelper} from "./ClaimHelper.sol";
+import {ICoverData} from "../Interfaces/ICoverData.sol";
+import {IClaimData} from "../Interfaces/IClaimData.sol";
+import {IListingData} from "../Interfaces/IListingData.sol";
+import {IPlatformData} from "../Interfaces/IPlatformData.sol";
+import {ICoverGateway} from "../Interfaces/ICoverGateway.sol";
+import {IListingGateway} from "../Interfaces/IListingGateway.sol";
+import {IClaimGateway} from "../Interfaces/IClaimGateway.sol";
+import {IPool} from "../Interfaces/IPool.sol";
+import {IClaimHelper} from "../Interfaces/IClaimHelper.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
-contract ClaimGateway is Master {
+contract ClaimGateway is IClaimGateway, Pausable {
     // State variables
-    CoverGateway private coverGateway;
-    ListingGateway private listingGateway;
-    CoverData private coverData;
-    ClaimData private claimData;
-    ListingData private listingData;
-    PlatformData private platformData;
-    Pool private pool;
-    ClaimHelper private claimHelper;
+    ICoverGateway public coverGateway;
+    IListingGateway public listingGateway;
+    ICoverData public coverData;
+    IClaimData public claimData;
+    IListingData public listingData;
+    IPlatformData public platformData;
+    IPool public pool;
+    IClaimHelper public claimHelper;
     uint256 private constant PHASE_OFFSET = 64;
     uint256 private constant STABLECOINS_STANDARD_PRICE = 1;
 
@@ -67,6 +68,22 @@ contract ClaimGateway is Master {
         uint256 amount
     );
 
+    modifier onlyAdmin() {
+        require(
+            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "ERR_AUTH_1"
+        );
+        _;
+    }
+
+    function pause() public onlyAdmin whenNotPaused {
+        _pause();
+    }
+
+    function unpause() public onlyAdmin whenPaused {
+        _unpause();
+    }
+
     function changeDependentContractAddress() external {
         // Only admin allowed to call this function
         require(
@@ -74,14 +91,14 @@ contract ClaimGateway is Master {
             "ERR_AUTH_1"
         );
 
-        coverGateway = CoverGateway(cg.getLatestAddress("CG"));
-        listingGateway = ListingGateway(cg.getLatestAddress("LG"));
-        coverData = CoverData(cg.getLatestAddress("CD"));
-        claimData = ClaimData(cg.getLatestAddress("CM"));
-        listingData = ListingData(cg.getLatestAddress("LD"));
-        platformData = PlatformData(cg.getLatestAddress("PD"));
-        pool = Pool(cg.getLatestAddress("PL"));
-        claimHelper = ClaimHelper(cg.getLatestAddress("CH"));
+        coverGateway = ICoverGateway(cg.getLatestAddress("CG"));
+        listingGateway = IListingGateway(cg.getLatestAddress("LG"));
+        coverData = ICoverData(cg.getLatestAddress("CD"));
+        claimData = IClaimData(cg.getLatestAddress("CM"));
+        listingData = IListingData(cg.getLatestAddress("LD"));
+        platformData = IPlatformData(cg.getLatestAddress("PD"));
+        pool = IPool(cg.getLatestAddress("PL"));
+        claimHelper = IClaimHelper(cg.getLatestAddress("CH"));
     }
 
     /**
@@ -89,7 +106,10 @@ contract ClaimGateway is Master {
      * @param coverId id of cover
      * @param roundId number attribute from subgraph
      */
-    function submitClaim(uint256 coverId, uint80 roundId) external {
+    function submitClaim(uint256 coverId, uint80 roundId)
+        external
+        whenNotPaused
+    {
         // msg.sender must cover's owner
         InsuranceCover memory cover = coverData.getCoverById(coverId);
         require(cover.holder == msg.sender, "ERR_CLG_1");
@@ -160,7 +180,7 @@ contract ClaimGateway is Master {
     /**
      * @dev Called by insurance holder for check claim status over cover, that cover come from take offer
      */
-    function checkPayout(uint256 claimId) external {
+    function checkPayout(uint256 claimId) external override whenNotPaused {
         uint256 coverId = claimData.claimToCover(claimId);
 
         // make sure there is no valid claim
@@ -265,7 +285,11 @@ contract ClaimGateway is Master {
     /**
      * @dev will only be able to call by funders of cover request to collect premium from holder
      */
-    function collectPremiumOfRequestByFunder(uint256 coverId) external {
+    function collectPremiumOfRequestByFunder(uint256 coverId)
+        external
+        override
+        whenNotPaused
+    {
         InsuranceCover memory cover = coverData.getCoverById(coverId);
         // Make sure cover coming from provide request
         require(cover.listingType == ListingType.REQUEST, "ERR_CLG_11");
@@ -323,7 +347,7 @@ contract ClaimGateway is Master {
     /**
      * @dev only be able to call by holder to refund premium on Cover Request
      */
-    function refundPremium(uint256 requestId) external {
+    function refundPremium(uint256 requestId) external override whenNotPaused {
         CoverRequest memory coverRequest = listingData.getCoverRequestById(
             requestId
         );
@@ -388,7 +412,11 @@ contract ClaimGateway is Master {
     /**
      * @dev will be call by funder of offer cover will send back deposit that funder already spend for offer cover
      */
-    function takeBackDepositOfCoverOffer(uint256 offerId) external {
+    function takeBackDepositOfCoverOffer(uint256 offerId)
+        external
+        override
+        whenNotPaused
+    {
         CoverOffer memory coverOffer = listingData.getCoverOfferById(offerId);
         // must call by funder/creator of offer cover
         require(msg.sender == coverOffer.funder, "ERR_CLG_18");
@@ -439,7 +467,11 @@ contract ClaimGateway is Master {
     /**
      * @dev will be call by funder that provide a cover request will send back deposit that funder already spend for a cover request
      */
-    function refundDepositOfProvideCover(uint256 coverId) external {
+    function refundDepositOfProvideCover(uint256 coverId)
+        external
+        override
+        whenNotPaused
+    {
         InsuranceCover memory cover = coverData.getCoverById(coverId);
         // cover must be coming from provide request
         require(cover.listingType == ListingType.REQUEST, "ERR_CLG_24");
@@ -510,7 +542,7 @@ contract ClaimGateway is Master {
     /**
      * @dev Only be able called by Developer to withdraw Valid Expired Payout
      */
-    function withdrawExpiredPayout() external {
+    function withdrawExpiredPayout() external override whenNotPaused {
         // Only dev wallet address can call function
         require(msg.sender == cg.getLatestAddress("DW"), "ERR_AUTH_3");
 
@@ -540,6 +572,7 @@ contract ClaimGateway is Master {
      */
     function validateAllPendingClaims(ListingType listingType, address funder)
         external
+        override
     {
         // get list of listing id
         uint256[] memory listingIds = (listingType == ListingType.OFFER)
@@ -557,6 +590,8 @@ contract ClaimGateway is Master {
      */
     function validatePendingClaims(ListingType listingType, uint256 listingId)
         external
+        override
+        whenNotPaused
     {
         // Validate expired pending claims
         claimHelper.execExpiredPendingClaims(listingType, listingId);
@@ -565,7 +600,7 @@ contract ClaimGateway is Master {
     /**
      * @dev Check pending claims over Cover
      */
-    function validatePendingClaimsByCover(uint256 coverId) external {
+    function validatePendingClaimsByCover(uint256 coverId) external override {
         // Get Cover
         InsuranceCover memory cover = coverData.getCoverById(coverId);
         // Price feed aggregator address
@@ -577,7 +612,11 @@ contract ClaimGateway is Master {
     /**
      * @dev Check pending claims by claim id
      */
-    function validatePendingClaimsById(uint256 claimId) external {
+    function validatePendingClaimsById(uint256 claimId)
+        external
+        override
+        whenNotPaused
+    {
         // Validate expired pending claims
         claimHelper.checkValidityClaim(claimId);
     }

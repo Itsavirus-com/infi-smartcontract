@@ -3,24 +3,34 @@ pragma solidity ^0.8.0;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/draft-IERC20Permit.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC1363Receiver} from "../ERC/IERC1363Receiver.sol";
-import {Master} from "../Master/Master.sol";
-import {ListingGateway} from "../Gateway/ListingGateway.sol";
-import {PlatformData} from "../Data/PlatformData.sol";
+import {IPool} from "../Interfaces/IPool.sol";
+import {IListingGateway} from "../Interfaces/IListingGateway.sol";
+import {IPlatformData} from "../Interfaces/IPlatformData.sol";
 import {IDaiPermit} from "../ERC/IDaiPermit.sol";
 import {EIP712} from "../EIP/EIP712.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
-contract Pool is IERC1363Receiver, Master {
-    using SafeERC20 for ERC20;
+contract Pool is
+    IERC1363Receiver,
+    IPool,
+    Initializable,
+    UUPSUpgradeable,
+    Pausable
+{
+    using SafeERC20Upgradeable for ERC20Upgradeable;
 
     // State Variables
-    ListingGateway private lg;
-    PlatformData private platformData;
+    IListingGateway private lg;
+    IPlatformData private platformData;
     ERC20Burnable internal infiToken;
     address public devWallet;
     address public daiTokenAddr;
@@ -47,23 +57,39 @@ contract Pool is IERC1363Receiver, Master {
         bytes data
     );
 
-    constructor() {
-        DOMAIN_SEPARATOR = EIP712.makeDomainSeparator("insured-finance", "v1");
-    }
-
-    function changeDependentContractAddress() external {
+    modifier onlyAdmin() {
         // Only admin allowed to call this function
         require(
             IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "ERR_AUTH_1"
         );
+        _;
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(super._getAdmin() == msg.sender, "ERR_AUTH_5");
+    }
+
+    function initialize() public initializer {
+        DOMAIN_SEPARATOR = EIP712.makeDomainSeparator("insured-finance", "v1");
+    }
+
+    function pause() public onlyAdmin whenNotPaused {
+        _pause();
+    }
+
+    function unpause() public onlyAdmin whenPaused {
+        _unpause();
+    }
+
+    function changeDependentContractAddress() external onlyAdmin {
         infiToken = ERC20Burnable(cg.infiTokenAddr());
-        lg = ListingGateway(cg.getLatestAddress("LG"));
+        lg = IListingGateway(cg.getLatestAddress("LG"));
         devWallet = cg.getLatestAddress("DW");
         daiTokenAddr = cg.getLatestAddress("DT");
         usdtTokenAddr = cg.getLatestAddress("UT");
         usdcTokenAddr = cg.getLatestAddress("UC");
-        platformData = PlatformData(cg.getLatestAddress("PD"));
+        platformData = IPlatformData(cg.getLatestAddress("PD"));
     }
 
     /**
@@ -75,7 +101,7 @@ contract Pool is IERC1363Receiver, Master {
         address from,
         uint256 value,
         bytes memory data
-    ) external override returns (bytes4) {
+    ) external override whenNotPaused returns (bytes4) {
         require(msg.sender == address(infiToken), "ERR_AUTH_2"); // Only specific token accepted (on this case only INFI)
 
         // Emit Event
@@ -101,7 +127,12 @@ contract Pool is IERC1363Receiver, Master {
     /**
      * @dev Burn half of listing fee & transfer half of listing fee to developer wallet
      */
-    function transferAndBurnInfi(uint256 listingFee) external onlyInternal {
+    function transferAndBurnInfi(uint256 listingFee)
+        external
+        override
+        onlyInternal
+        whenNotPaused
+    {
         // Calculation half of listing fee
         uint256 halfListingFee = listingFee / 2;
         infiToken.burn(halfListingFee); // burn half of listing fee
@@ -127,7 +158,7 @@ contract Pool is IERC1363Receiver, Master {
         uint256 insuredSum,
         uint256 feeCoinPrice,
         uint80 roundId
-    ) external view returns (uint256) {
+    ) external view override returns (uint256) {
         uint256 feeCoinPriceDecimal = 6;
         // uint insuredSumInUSD = insuredSum * insuredSumCurrencyPriceOnCL / 10**insuredSumCurrencyDecimalOnCL / 10**insuredSumCurrencyDecimal; // insuredSum in USD
         // uint insuredSumInInfi = insuredSumInUSD * 10**feeCoinPriceDecimal / feeCoinPrice;
@@ -169,7 +200,7 @@ contract Pool is IERC1363Receiver, Master {
         CurrencyType currentyType,
         uint256 amount,
         bytes memory premiumPermit
-    ) external onlyInternal {
+    ) external override onlyInternal whenNotPaused {
         if (currentyType == CurrencyType.DAI) {
             // Approve
             DAIPermit memory permitData = abi.decode(
@@ -196,7 +227,11 @@ contract Pool is IERC1363Receiver, Master {
                 "DAI : accept asset failed"
             );
         } else if (currentyType == CurrencyType.USDT) {
-            ERC20(usdtTokenAddr).safeTransferFrom(from, address(this), amount);
+            ERC20Upgradeable(usdtTokenAddr).safeTransferFrom(
+                from,
+                address(this),
+                amount
+            );
         } else if (currentyType == CurrencyType.USDC) {
             // Approve
             EIP2612Permit memory permitData = abi.decode(
@@ -229,14 +264,14 @@ contract Pool is IERC1363Receiver, Master {
         address to,
         CurrencyType currentyType,
         uint256 amount
-    ) external onlyInternal {
+    ) external override onlyInternal whenNotPaused {
         if (currentyType == CurrencyType.DAI) {
             require(
                 IERC20(daiTokenAddr).transfer(to, amount),
                 "DAI : transfer failed"
             );
         } else if (currentyType == CurrencyType.USDT) {
-            ERC20(usdtTokenAddr).safeTransfer(to, amount);
+            ERC20Upgradeable(usdtTokenAddr).safeTransfer(to, amount);
         } else if (currentyType == CurrencyType.USDC) {
             require(
                 IERC20(usdcTokenAddr).transfer(to, amount),
@@ -253,6 +288,7 @@ contract Pool is IERC1363Receiver, Master {
     function verifyMessage(CoinPricingInfo memory coinPricing, address whose)
         external
         view
+        override
     {
         require(
             EIP712.recover(

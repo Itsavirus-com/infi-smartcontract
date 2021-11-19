@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
-import {IConfig} from "./IConfig.sol";
+import {IConfig} from "../Interfaces/IConfig.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract Master {

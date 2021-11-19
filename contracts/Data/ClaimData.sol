@@ -1,45 +1,50 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
-import {Master} from "../Master/Master.sol";
+import {IClaimData} from "../Interfaces/IClaimData.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract ClaimData is Master {
+contract ClaimData is IClaimData, UUPSUpgradeable {
     // State variable
     Claim[] internal claims;
     mapping(uint256 => uint256[]) internal coverToClaims;
-    mapping(uint256 => uint256) public claimToCover;
+    mapping(uint256 => uint256) public override claimToCover;
 
     CollectiveClaim[] internal collectiveClaims;
     mapping(uint256 => uint256[]) internal requestToCollectiveClaims;
-    mapping(uint256 => uint256) public collectiveClaimToRequest;
+    mapping(uint256 => uint256) public override collectiveClaimToRequest;
 
     // total payout from claim of offer cover,
     // it will record how much payout already done for cover offer
-    mapping(uint256 => uint256) public offerIdToPayout;
-    mapping(uint256 => uint256) public coverToPayout;
+    mapping(uint256 => uint256) public override offerIdToPayout;
+    mapping(uint256 => uint256) public override coverToPayout;
     // Mapping status is valid claim exists on Insurance Cover
     // InsuranceCover.id => true/false
-    mapping(uint256 => bool) public isValidClaimExistOnCover;
+    mapping(uint256 => bool) public override isValidClaimExistOnCover;
     // To make sure Cover from Take Offer only used unique roundId to claim
     // Mapping Insurance Cover ||--< Round Id => true/false
-    mapping(uint256 => mapping(uint80 => bool)) public coverIdToRoundId;
+    mapping(uint256 => mapping(uint80 => bool))
+        public
+        override coverIdToRoundId;
 
     // it will record how much payout already done for cover request
-    mapping(uint256 => uint256) public requestIdToPayout;
+    mapping(uint256 => uint256) public override requestIdToPayout;
     // Mapping status is valid claim exists on Cover Request
     // CoverRequest.id => true/false
-    mapping(uint256 => bool) public isValidClaimExistOnRequest;
+    mapping(uint256 => bool) public override isValidClaimExistOnRequest;
     // To make sure Cover from Create Request only used unique roundId to claim
     // Mapping Cover Request ||--< ROund Id => true/false
-    mapping(uint256 => mapping(uint80 => bool)) public requestIdToRoundId;
+    mapping(uint256 => mapping(uint80 => bool))
+        public
+        override requestIdToRoundId;
 
     // total amount of expired payout that owned by platform
-    mapping(CurrencyType => uint256) public totalExpiredPayout;
+    mapping(CurrencyType => uint256) public override totalExpiredPayout;
 
     // Calculate pending claims
-    mapping(uint256 => uint16) public offerToPendingClaims;
-    mapping(uint256 => uint16) public coverToPendingClaims;
-    mapping(uint256 => uint16) public requestToPendingCollectiveClaims;
+    mapping(uint256 => uint16) public override offerToPendingClaims;
+    mapping(uint256 => uint16) public override coverToPendingClaims;
+    mapping(uint256 => uint16) public override requestToPendingCollectiveClaims;
 
     // Event
     event ClaimRaise(
@@ -59,6 +64,10 @@ contract ClaimData is Master {
         uint256 roundTimestamp
     );
 
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(super._getAdmin() == msg.sender, "ERR_AUTH_5");
+    }
+
     /**
      * @dev Create a new Claim
      */
@@ -68,7 +77,7 @@ contract ClaimData is Master {
         uint80 roundId,
         uint256 roundTimestamp,
         address holder
-    ) external returns (uint256) {
+    ) external override returns (uint256) {
         // Store Data Claim
         claims.push(Claim(roundId, block.timestamp, 0, ClaimState.MONITORING));
         uint256 claimId = claims.length - 1;
@@ -96,7 +105,10 @@ contract ClaimData is Master {
     /**
      * @dev change payout value over Cover
      */
-    function setCoverToPayout(uint256 coverId, uint256 payout) external {
+    function setCoverToPayout(uint256 coverId, uint256 payout)
+        external
+        override
+    {
         coverToPayout[coverId] += payout;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
@@ -105,7 +117,10 @@ contract ClaimData is Master {
     /**
      * @dev change payout value over Cover Offer
      */
-    function setOfferIdToPayout(uint256 offerId, uint256 payout) external {
+    function setOfferIdToPayout(uint256 offerId, uint256 payout)
+        external
+        override
+    {
         offerIdToPayout[offerId] += payout;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
@@ -117,12 +132,16 @@ contract ClaimData is Master {
     function getCoverToClaims(uint256 coverId)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return coverToClaims[coverId];
     }
 
-    function setCoverIdToRoundId(uint256 coverId, uint80 roundId) external {
+    function setCoverIdToRoundId(uint256 coverId, uint80 roundId)
+        external
+        override
+    {
         coverIdToRoundId[coverId][roundId] = true;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
@@ -132,7 +151,7 @@ contract ClaimData is Master {
         uint256 claimId,
         uint256 offerId,
         ClaimState state
-    ) external {
+    ) external override {
         Claim storage claim = claims[claimId];
 
         if (
@@ -159,6 +178,7 @@ contract ClaimData is Master {
     function getClaimById(uint256 claimId)
         external
         view
+        override
         returns (Claim memory)
     {
         return claims[claimId];
@@ -172,7 +192,7 @@ contract ClaimData is Master {
         uint80 roundId,
         uint256 roundTimestamp,
         address holder
-    ) external returns (uint256) {
+    ) external override returns (uint256) {
         collectiveClaims.push(
             CollectiveClaim(roundId, block.timestamp, 0, ClaimState.MONITORING)
         );
@@ -196,13 +216,19 @@ contract ClaimData is Master {
         return collectiveClaimId;
     }
 
-    function setRequestIdToRoundId(uint256 requestId, uint80 roundId) external {
+    function setRequestIdToRoundId(uint256 requestId, uint80 roundId)
+        external
+        override
+    {
         requestIdToRoundId[requestId][roundId] = true;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
     }
 
-    function setIsValidClaimExistOnRequest(uint256 requestId) external {
+    function setIsValidClaimExistOnRequest(uint256 requestId)
+        external
+        override
+    {
         isValidClaimExistOnRequest[requestId] = true;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
@@ -214,7 +240,7 @@ contract ClaimData is Master {
     function updateCollectiveClaimState(
         uint256 collectiveClaimId,
         ClaimState state
-    ) external {
+    ) external override {
         CollectiveClaim storage collectiveClaim = collectiveClaims[
             collectiveClaimId
         ];
@@ -246,7 +272,10 @@ contract ClaimData is Master {
     /**
      * @dev change payout value over Cover Request
      */
-    function setRequestIdToPayout(uint256 requestId, uint256 payout) external {
+    function setRequestIdToPayout(uint256 requestId, uint256 payout)
+        external
+        override
+    {
         requestIdToPayout[requestId] += payout;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
@@ -258,6 +287,7 @@ contract ClaimData is Master {
     function getCollectiveClaimById(uint256 collectiveClaimId)
         external
         view
+        override
         returns (CollectiveClaim memory)
     {
         return collectiveClaims[collectiveClaimId];
@@ -269,6 +299,7 @@ contract ClaimData is Master {
      */
     function addTotalExpiredPayout(CurrencyType currencyType, uint256 amount)
         external
+        override
     {
         totalExpiredPayout[currencyType] += amount;
         // Check the caller is internal address
@@ -278,7 +309,10 @@ contract ClaimData is Master {
     /**
      * @dev Set total payout to 0, called when developer withdraw token of expired calid claim
      */
-    function resetTotalExpiredPayout(CurrencyType currencyType) external {
+    function resetTotalExpiredPayout(CurrencyType currencyType)
+        external
+        override
+    {
         totalExpiredPayout[currencyType] = 0;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
@@ -287,6 +321,7 @@ contract ClaimData is Master {
     function getRequestToCollectiveClaims(uint256 requestId)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return requestToCollectiveClaims[requestId];

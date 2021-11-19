@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
-import {Master} from "../Master/Master.sol";
+import {IListingData} from "../Interfaces/IListingData.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract ListingData is Master {
+contract ListingData is IListingData, UUPSUpgradeable {
     // State Variable
     // Cover Request
     CoverRequest[] internal requests; // CoverRequest.id
-    mapping(uint256 => uint256) public requestIdToInsuredSumTaken;
+    mapping(uint256 => uint256) public override requestIdToInsuredSumTaken;
     mapping(address => uint256[]) internal buyerToRequests;
     mapping(string => uint256[]) internal coinIdToRequests;
-    mapping(uint256 => uint256) public coverRequestFullyFundedAt;
-    mapping(uint256 => bool) public requestIdToRefundPremium;
-    mapping(uint256 => bool) public isDepositTakenBack; // coverId -> true/false
+    mapping(uint256 => uint256) public override coverRequestFullyFundedAt;
+    mapping(uint256 => bool) public override requestIdToRefundPremium;
+    mapping(uint256 => bool) public override isDepositTakenBack; // coverId -> true/false
     // Cover Offer
     CoverOffer[] internal offers; // CoverOffer.id
-    mapping(uint256 => uint256) public offerIdToInsuredSumTaken;
+    mapping(uint256 => uint256) public override offerIdToInsuredSumTaken;
     mapping(address => uint256[]) internal funderToOffers;
     mapping(string => uint256[]) internal coinIdToOffers;
-    mapping(uint256 => bool) public isDepositOfOfferTakenBack; // offer id => state of take back deposit
+    mapping(uint256 => bool) public override isDepositOfOfferTakenBack; // offer id => state of take back deposit
 
     // Events
     event CreateRequest(
@@ -41,6 +42,10 @@ contract ListingData is Master {
     event RequestFullyFunded(uint256 requestId, uint256 fullyFundedAt);
     event PremiumRefunded(uint256 requestId);
 
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(super._getAdmin() == msg.sender, "ERR_AUTH_5");
+    }
+
     /**
      * @dev Save listing data of cover request
      */
@@ -49,7 +54,7 @@ contract ListingData is Master {
         CoinPricingInfo memory assetPricing,
         CoinPricingInfo memory feePricing,
         address member
-    ) external {
+    ) external override {
         requests.push(inputRequest);
         uint256 requestId = requests.length - 1;
         buyerToRequests[member].push(requestId);
@@ -72,6 +77,7 @@ contract ListingData is Master {
     function getCoverRequestById(uint256 requestId)
         external
         view
+        override
         returns (CoverRequest memory coverRequest)
     {
         return requests[requestId];
@@ -80,7 +86,7 @@ contract ListingData is Master {
     /**
      * @dev Get length of array contains Cover Request(s)
      */
-    function getCoverRequestLength() external view returns (uint256) {
+    function getCoverRequestLength() external view override returns (uint256) {
         return requests.length;
     }
 
@@ -93,7 +99,7 @@ contract ListingData is Master {
         CoinPricingInfo memory assetPricing,
         uint8 depositPeriod,
         address member
-    ) external {
+    ) external override {
         offers.push(inputOffer);
         uint256 offerId = offers.length - 1;
         funderToOffers[member].push(offerId);
@@ -117,6 +123,7 @@ contract ListingData is Master {
     function getCoverOfferById(uint256 offerId)
         external
         view
+        override
         returns (CoverOffer memory coverOffer)
     {
         return offers[offerId];
@@ -128,6 +135,7 @@ contract ListingData is Master {
     function getCoverOffersListByAddr(address member)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return funderToOffers[member];
@@ -136,7 +144,7 @@ contract ListingData is Master {
     /**
      * @dev Get length of array contains Cover Offer(s)
      */
-    function getCoverOfferLength() external view returns (uint256) {
+    function getCoverOfferLength() external view override returns (uint256) {
         return offers.length;
     }
 
@@ -146,7 +154,7 @@ contract ListingData is Master {
     function updateOfferInsuredSumTaken(
         uint256 offerId,
         uint256 insuredSumTaken
-    ) external {
+    ) external override {
         offerIdToInsuredSumTaken[offerId] = insuredSumTaken;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
@@ -158,7 +166,7 @@ contract ListingData is Master {
     function updateRequestInsuredSumTaken(
         uint256 requestId,
         uint256 insuredSumTaken
-    ) external {
+    ) external override {
         requestIdToInsuredSumTaken[requestId] = insuredSumTaken;
         // Check the caller is internal address
         require(cg.isInternal(msg.sender), "ERR_AUTH_2");
@@ -172,6 +180,7 @@ contract ListingData is Master {
     function isRequestReachTarget(uint256 requestId)
         external
         view
+        override
         returns (bool)
     {
         CoverRequest memory request = requests[requestId];
@@ -186,6 +195,7 @@ contract ListingData is Master {
     function isRequestFullyFunded(uint256 requestId)
         external
         view
+        override
         returns (bool)
     {
         CoverRequest memory request = requests[requestId];
@@ -205,7 +215,7 @@ contract ListingData is Master {
     function setCoverRequestFullyFundedAt(
         uint256 requestId,
         uint256 fullyFundedAt
-    ) external {
+    ) external override {
         coverRequestFullyFundedAt[requestId] = fullyFundedAt;
         emit RequestFullyFunded(requestId, fullyFundedAt);
         // Check the caller is internal address
@@ -217,7 +227,7 @@ contract ListingData is Master {
      * @dev Refund premium condition :
      * @dev Withdraw premium of fail Cover Request or Withdraw of remaining premium on Cover Request
      */
-    function setRequestIdToRefundPremium(uint256 requestId) external {
+    function setRequestIdToRefundPremium(uint256 requestId) external override {
         requestIdToRefundPremium[requestId] = true;
         emit PremiumRefunded(requestId);
         // Check the caller is internal address
@@ -228,7 +238,7 @@ contract ListingData is Master {
      * @dev Called when funder refund/take back deposit
      * @dev Withdraw of remaining deposit on Cover Offer
      */
-    function setDepositOfOfferTakenBack(uint256 offerId) external {
+    function setDepositOfOfferTakenBack(uint256 offerId) external override {
         isDepositOfOfferTakenBack[offerId] = true;
         emit DepositOfOfferTakenBack(offerId);
         // Check the caller is internal address
@@ -238,7 +248,7 @@ contract ListingData is Master {
     /**
      * @dev Called when funder refund/take back deposit, to mark deposit had taken
      */
-    function setIsDepositTakenBack(uint256 coverId) external {
+    function setIsDepositTakenBack(uint256 coverId) external override {
         isDepositTakenBack[coverId] = true;
         emit DepositTakenBack(coverId);
         // Check the caller is internal address
@@ -251,6 +261,7 @@ contract ListingData is Master {
     function getBuyerToRequests(address holder)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return buyerToRequests[holder];
@@ -262,6 +273,7 @@ contract ListingData is Master {
     function getFunderToOffers(address funder)
         external
         view
+        override
         returns (uint256[] memory)
     {
         return funderToOffers[funder];

@@ -63,10 +63,11 @@ PRs and feedback welcome!
 
 ### Error Message Code on Smart Contract
 
-- ERR_AUTH_1 = Caller is not admin
+- ERR_AUTH_1 = Caller is not access control admin
 - ERR_AUTH_2 = Caller is not from allowed address
 - ERR_AUTH_3 = Caller is not wallet dev address
 - ERR_AUTH_4 = Member balance insufficient
+- ERR_AUTH_5 = Caller is not proxy admin
 
 - ERR_SIGN_NOT_VALID = Signature not valid
 

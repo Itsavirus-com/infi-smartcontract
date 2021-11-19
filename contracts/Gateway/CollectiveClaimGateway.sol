@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
-import {CoverData} from "../Data/CoverData.sol";
-import {ClaimData} from "../Data/ClaimData.sol";
-import {ListingData} from "../Data/ListingData.sol";
-import {PlatformData} from "../Data/PlatformData.sol";
-import {CoverGateway} from "./CoverGateway.sol";
-import {ListingGateway} from "./ListingGateway.sol";
-import {ClaimGateway} from "./ClaimGateway.sol";
-import {ClaimHelper} from "./ClaimHelper.sol";
+import {ICoverData} from "../Interfaces/ICoverData.sol";
+import {IClaimData} from "../Interfaces/IClaimData.sol";
+import {IListingData} from "../Interfaces/IListingData.sol";
+import {IPlatformData} from "../Interfaces/IPlatformData.sol";
+import {ICoverGateway} from "../Interfaces/ICoverGateway.sol";
+import {IListingGateway} from "../Interfaces/IListingGateway.sol";
+import {IClaimGateway} from "../Interfaces/IClaimGateway.sol";
+import {IClaimHelper} from "../Interfaces/IClaimHelper.sol";
 import {Master} from "../Master/Master.sol";
-import {Pool} from "../Capital/Pool.sol";
+import {IPool} from "../Interfaces/IPool.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 contract CollectiveClaimGateway is Master {
     // State variables
-    CoverGateway private coverGateway;
-    ListingGateway private listingGateway;
-    ClaimGateway private claimGateway;
-    CoverData private coverData;
-    ClaimData private claimData;
-    ListingData private listingData;
-    PlatformData private platformData;
-    ClaimHelper private claimHelper;
-    Pool private pool;
+    ICoverGateway private coverGateway;
+    IListingGateway private listingGateway;
+    IClaimGateway private claimGateway;
+    ICoverData private coverData;
+    IClaimData private claimData;
+    IListingData private listingData;
+    IPlatformData private platformData;
+    IClaimHelper private claimHelper;
+    IPool private pool;
 
     event CollectivePremium(
         address funder,
@@ -61,15 +61,15 @@ contract CollectiveClaimGateway is Master {
             IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "ERR_AUTH_1"
         );
-        coverGateway = CoverGateway(cg.getLatestAddress("CG"));
-        listingGateway = ListingGateway(cg.getLatestAddress("LG"));
-        claimGateway = ClaimGateway(cg.getLatestAddress("CL"));
-        coverData = CoverData(cg.getLatestAddress("CD"));
-        claimData = ClaimData(cg.getLatestAddress("CM"));
-        listingData = ListingData(cg.getLatestAddress("LD"));
-        platformData = PlatformData(cg.getLatestAddress("PD"));
-        pool = Pool(cg.getLatestAddress("PL"));
-        claimHelper = ClaimHelper(cg.getLatestAddress("CH"));
+        coverGateway = ICoverGateway(cg.getLatestAddress("CG"));
+        listingGateway = IListingGateway(cg.getLatestAddress("LG"));
+        claimGateway = IClaimGateway(cg.getLatestAddress("CL"));
+        coverData = ICoverData(cg.getLatestAddress("CD"));
+        claimData = IClaimData(cg.getLatestAddress("CM"));
+        listingData = IListingData(cg.getLatestAddress("LD"));
+        platformData = IPlatformData(cg.getLatestAddress("PD"));
+        pool = IPool(cg.getLatestAddress("PL"));
+        claimHelper = IClaimHelper(cg.getLatestAddress("CH"));
     }
 
     /**
