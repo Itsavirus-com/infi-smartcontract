@@ -1,5 +1,6 @@
 import { BigNumberish } from '@ethersproject/bignumber';
 import {
+  ClaimData,
   ClaimGateway,
   ClaimHelper,
   CoverGateway,
@@ -59,6 +60,7 @@ describe('Create Offer until Claim, Valid Claims 1', () => {
   let currentPrice: BigNumberish;
   let platformData: PlatformData;
   let claimHelper: ClaimHelper;
+  let claimData: ClaimData;
 
   /**
    * Note
@@ -98,6 +100,7 @@ describe('Create Offer until Claim, Valid Claims 1', () => {
     listingData = await getContract<ListingData>('ListingData');
     platformData = await getContract<PlatformData>('PlatformData');
     claimHelper = await getContract<ClaimHelper>('ClaimHelper');
+    claimData = await getContract<ClaimData>('ClaimData');
 
     usdtDecimal = parseInt((await usdtToken.decimals()).toString(), 0);
     usdcDecimal = await usdcToken.decimals();
@@ -334,6 +337,22 @@ describe('Create Offer until Claim, Valid Claims 1', () => {
       expect(funderTokenAfter).to.eq(
         funderTokenBefore.add(withdrawableDeposit)
       );
+    });
+
+    it('Should keep storage data same as before upgrading the implementation', async () => {
+      const args: any[] = [];
+      const dummyImplementation = await deployments.deploy(
+        'ClaimDataDummyImplementation',
+        {
+          from: deployer.address,
+          args,
+          log: true,
+        }
+      );
+
+      claimData.connect(deployer).upgradeTo(dummyImplementation.address);
+      const claim = await claimData.getClaimById(0);
+      expect(claim[0]).to.eq(ethers.BigNumber.from('18446744073709555607'));
     });
   });
 });

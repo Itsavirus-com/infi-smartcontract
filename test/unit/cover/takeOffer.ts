@@ -32,7 +32,7 @@ import {
   SignerWithAddress,
 } from '../utils/interfaces';
 import { setUpMockKeepers } from '../utils/keepersUtils';
-import { encodeParam, encodePermit } from '../utils/paramUtils';
+import { encodePermit } from '../utils/paramUtils';
 import {
   signCoinPricingInfo,
   signPermitDai,
@@ -43,6 +43,7 @@ const coverOfferId1 = 0;
 const coverOfferId2 = 1;
 
 describe('Take Offer', () => {
+  let deployer: SignerWithAddress;
   let coinSigner: SignerWithAddress;
   let holder1: SignerWithAddress;
   let holder2: SignerWithAddress;
@@ -56,6 +57,7 @@ describe('Take Offer', () => {
   let cg: CoverGateway;
   let claimData: ClaimData;
   let claimGateway: ClaimGateway;
+  let dataBuyCoverDummy: BuyCover;
   let daiDecimal: number;
   const dummyRoundId = '18446744073709555607';
 
@@ -75,6 +77,7 @@ describe('Take Offer', () => {
       funder1,
       coinSigner,
       devWallet,
+      deployer,
     } = await ethers.getNamedSigners());
 
     // Get external contracts
@@ -221,6 +224,8 @@ describe('Take Offer', () => {
       ),
       premiumPermit: permitDataBytes,
     };
+
+    dataBuyCoverDummy = dataBuyCover;
 
     // Calculate total premium
     const totalPremium = calculatePremium(
@@ -555,5 +560,26 @@ describe('Take Offer', () => {
     await expect(cg.connect(holder1).buyCover(dataBuyCover)).to.be.revertedWith(
       'ERR_CG_4'
     );
+  });
+
+  it('should upgrade', async () => {
+    const args: any[] = [];
+    const newPoolImplementation = await deployments.deploy(
+      'CoverDataDummyImplementation',
+      {
+        from: deployer.address,
+        args,
+        log: true,
+      }
+    );
+
+    await cd.connect(deployer).upgradeTo(newPoolImplementation.address);
+
+    const coverData = await cd.getCoverById(0);
+    expect(coverData.offerId).to.eq(dataBuyCoverDummy.offerId);
+    expect(coverData.requestId).to.eq(0);
+    expect(coverData.holder).to.eq(dataBuyCoverDummy.buyer);
+    expect(coverData.insuredSum).to.eq(dataBuyCoverDummy.insuredSum);
+    expect(coverData.coverQty).to.eq(dataBuyCoverDummy.coverQty);
   });
 });
