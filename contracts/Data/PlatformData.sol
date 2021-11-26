@@ -25,18 +25,21 @@ contract PlatformData is IPlatformData {
         address proxyAddress
     );
 
+    modifier onlyAdmin() {
+        require(
+            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "ERR_AUTH_1"
+        );
+        _;
+    }
+
     /**
      * @dev Add New Platform
      */
     function addNewPlatform(string calldata name, string calldata website)
         external
+        onlyAdmin
     {
-        // Only admin allowed to call
-        require(
-            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-            "ERR_AUTH_1"
-        );
-
         // Store Data
         platforms.push(Platform(name, website));
         uint256 platformId = platforms.length - 1;
@@ -48,13 +51,8 @@ contract PlatformData is IPlatformData {
      */
     function addNewOracle(string calldata name, string calldata website)
         external
+        onlyAdmin
     {
-        // Only admin allowed to call
-        require(
-            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-            "ERR_AUTH_1"
-        );
-
         // Store Data
         oracles.push(Oracle(name, website));
         uint256 oracleId = oracles.length - 1;
@@ -66,13 +64,8 @@ contract PlatformData is IPlatformData {
      */
     function addNewCustodian(string calldata name, string calldata website)
         external
+        onlyAdmin
     {
-        // Only admin allowed to call
-        require(
-            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-            "ERR_AUTH_1"
-        );
-
         // Store Data
         custodians.push(Custodian(name, website));
         uint256 custodianId = custodians.length - 1;
@@ -88,13 +81,7 @@ contract PlatformData is IPlatformData {
         uint256 chainId,
         uint8 decimals,
         address proxyAddress
-    ) external {
-        // Only admin allowed to call
-        require(
-            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-            "ERR_AUTH_1"
-        );
-
+    ) external onlyAdmin {
         // Store Data
         usdPriceFeeds.push(
             PriceFeed(oracleId, chainId, decimals, proxyAddress)

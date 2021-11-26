@@ -46,13 +46,16 @@ contract ClaimHelper is IClaimHelper {
         uint256 collectiveClaimId
     );
 
-    function changeDependentContractAddress() external {
+    modifier onlyAdmin() {
         // Only admin allowed to call this function
         require(
             IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "ERR_AUTH_1"
         );
+        _;
+    }
 
+    function changeDependentContractAddress() external onlyAdmin {
         coverGateway = ICoverGateway(cg.getLatestAddress("CG"));
         listingGateway = IListingGateway(cg.getLatestAddress("LG"));
         coverData = ICoverData(cg.getLatestAddress("CD"));

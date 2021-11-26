@@ -104,12 +104,7 @@ contract ListingGateway is IListingGateway, Pausable {
         _unpause();
     }
 
-    function changeDependentContractAddress() external whenNotPaused {
-        // Only admin allowed to call this function
-        require(
-            IAccessControl(address(cg)).hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-            "ERR_AUTH_1"
-        );
+    function changeDependentContractAddress() external onlyAdmin {
         ld = IListingData(cg.getLatestAddress("LD"));
         infiToken = ERC20Burnable(cg.infiTokenAddr());
         coverGateway = ICoverGateway(cg.getLatestAddress("CG"));
